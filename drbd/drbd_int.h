@@ -320,7 +320,10 @@ enum drbd_packet {
 	P_CONN_ST_CHG_REPLY   = 0x2b, /* meta sock: Connection side state req reply */
 	P_RETRY_WRITE	      = 0x2c, /* Protocol C: retry conflicting write request */
 	P_PROTOCOL_UPDATE     = 0x2d, /* data sock: is used in established connections */
-
+#if ENABLE_PROTD
+        P_CHECKPOINT          = 0x2e,
+        P_CHECKPOINT_ACK      = 0x2f,
+#endif
 	P_MAY_IGNORE	      = 0x100, /* Flag to test if (cmd > P_MAY_IGNORE) ... */
 	P_MAX_OPT_CMD	      = 0x101,
 
@@ -680,6 +683,9 @@ struct drbd_tl_epoch {
 	struct drbd_tl_epoch *next; /* pointer to the next barrier */
 	unsigned int br_number;  /* the barriers identifier. */
 	int n_writes;	/* number of requests attached before this barrier */
+#if ENABLE_PROTD
+	unsigned int cp_number; /* checkpoint number */
+#endif
 };
 
 struct drbd_epoch {
@@ -723,6 +729,9 @@ struct drbd_peer_request {
 	struct drbd_epoch *epoch; /* for writes */
 	struct page *pages;
 	atomic_t pending_bios;
+#if ENABLE_PROTD
+        int bio_flags;
+#endif
 	struct drbd_interval i;
 	/* see comments on ee flag bits below */
 	unsigned long flags;
@@ -805,6 +814,9 @@ enum {
 				 * the peer, if it changed there as well. */
 	NEW_CUR_UUID,		/* Create new current UUID when thawing IO */
 	AL_SUSPENDED,		/* Activity logging is currently suspended. */
+#if ENABLE_PROTD  
+        GOT_CHECKPOINT_ACK,     /* set when secondary acks checkpoint req */
+#endif
 	AHEAD_TO_SYNC_SOURCE,   /* Ahead -> SyncSource queued */
 	B_RS_H_DONE,		/* Before resync handler done (already executed) */
 	DISCARD_MY_DATA,	/* discard_my_data flag per volume */
@@ -1098,6 +1110,11 @@ struct drbd_conf {
 	struct list_head done_ee;   /* need to send P_WRITE_ACK */
 	struct list_head read_ee;   /* [RS]P_DATA_REQUEST being read */
 	struct list_head net_ee;    /* zero-copy network send in progress */
+#if ENABLE_PROTD
+        struct list_head defer_ee;  /* IO deferred until P_CHECKPOINT is received */
+        unsigned int checkpoints;
+        unsigned int deferred;  
+#endif
 
 	int next_barrier_nr;
 	struct list_head resync_reads;
@@ -2003,6 +2020,22 @@ extern int drbd_send_ping(struct drbd_tconn *tconn);
 extern int drbd_send_ping_ack(struct drbd_tconn *tconn);
 extern int drbd_send_state_req(struct drbd_conf *, union drbd_state, union drbd_state);
 extern int conn_send_state_req(struct drbd_tconn *, union drbd_state, union drbd_state);
+
+#if ENABLE_PROTD
+/* drbd_receiver.c */
+extern int drbd_remus_drain_ee(struct drbd_conf *mdev);
+/* checkpoint requests have to be sent on the data socket
+ * to ensure that previous write packets have arrived at receiver.
+ * Acks can use meta socket.
+ */
+static inline int drbd_send_checkpoint_ack(struct drbd_conf *mdev)
+{
+	struct p_header80 h;
+	if (mdev->state.conn < C_CONNECTED)
+	  return FALSE;
+	return drbd_send_cmd(mdev, USE_META_SOCKET, P_CHECKPOINT_ACK, &h, sizeof(h));
+}
+#endif
 
 static inline void drbd_thread_stop(struct drbd_thread *thi)
 {
