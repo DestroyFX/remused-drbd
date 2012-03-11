@@ -810,6 +810,8 @@ static int conv_protocol(struct drbd_argument *ad, struct drbd_tag_list *tl, cha
 		prot=DRBD_PROT_B;
 	} else if (!strcmp(arg,"C") || !strcmp(arg,"c")) {
 		prot=DRBD_PROT_C;
+        } else if (!strcmp(arg,"D") || !strcmp(arg,"d")) {
+                prot=DRBD_PROT_D;
 	} else {
 		fprintf(stderr, "'%s' is no valid protocol.\n", arg);
 		return OTHER_ERROR;

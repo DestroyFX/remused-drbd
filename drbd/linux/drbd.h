@@ -179,6 +179,9 @@ enum drbd_ret_code {
 #define DRBD_PROT_A   1
 #define DRBD_PROT_B   2
 #define DRBD_PROT_C   3
+#if ENABLE_PROTD
+#define DRBD_PROT_D   4
+#endif
 
 enum drbd_role {
 	R_UNKNOWN = 0,
@@ -360,6 +363,7 @@ enum drbd_timeout_flag {
 #define DRBD_MD_MAGIC_08   (DRBD_MAGIC+4)
 #define DRBD_MD_MAGIC_84_UNCLEAN	(DRBD_MAGIC+5)
 
+#define ENABLE_PROTD 1
 
 /* how I came up with this magic?
  * base64 decode "actlog==" ;) */
